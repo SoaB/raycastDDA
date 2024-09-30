@@ -3,7 +3,28 @@
 #include "vecmath.h"
 #include <raylib.h>
 #include <stdbool.h>
+#include <stdint.h>
 extern int Map[MAP_SIZE][MAP_SIZE];
+extern Color colmap[8];
+uint32_t TexArr[8][TEX_SIZE * TEX_SIZE];
+void GenTexture()
+{
+    for (int x = 0; x < TEX_SIZE; x++)
+        for (int y = 0; y < TEX_SIZE; y++) {
+            int xorcolor = (x * 256 / TEX_SIZE) ^ (y * 256 / TEX_SIZE);
+            // int xcolor = x * 256 / texWidth;
+            int ycolor = y * 256 / TEX_SIZE;
+            int xycolor = y * 128 / TEX_SIZE + x * 128 / TEX_SIZE;
+            TexArr[0][TEX_SIZE * y + x] = 65536 * 254 * (x != y && x != TEX_SIZE - y); // flat red texture with black cross
+            TexArr[1][TEX_SIZE * y + x] = xycolor + 256 * xycolor + 65536 * xycolor; // sloped greyscale
+            TexArr[2][TEX_SIZE * y + x] = 256 * xycolor + 65536 * xycolor; // sloped yellow gradient
+            TexArr[3][TEX_SIZE * y + x] = xorcolor + 256 * xorcolor + 65536 * xorcolor; // xor greyscale
+            TexArr[4][TEX_SIZE * y + x] = 256 * xorcolor; // xor green
+            TexArr[5][TEX_SIZE * y + x] = 65536 * 192 * (x % 16 && y % 16); // red bricks
+            TexArr[6][TEX_SIZE * y + x] = 65536 * ycolor; // red gradient
+            TexArr[7][TEX_SIZE * y + x] = 128 + 256 * 128 + 65536 * 128; // flat grey texture
+        }
+}
 Ray_s GenRay(float x, float y)
 {
     Ray_s r;
@@ -14,6 +35,7 @@ Ray_s GenRay(float x, float y)
     for (int i = 0; i < 360; i++) {
         r.angle[i] = i * DEG2RAD;
     }
+    GenTexture();
     return r;
 }
 
@@ -81,7 +103,7 @@ bool CastRay(Ray_s* r, HitWall* hw)
             //            if (Map[(int)mapCheck.x][(int)mapCheck.y] == 1) {
             //                bTileFound = true;
             //            }
-            if (Map[(int)mapCheck.x][(int)mapCheck.y] == 1) {
+            if (Map[(int)mapCheck.x][(int)mapCheck.y] >= 1) {
                 hw->hitCell = mapCheck;
                 hw->distance = fDistance;
                 bTileFound = true;
@@ -100,33 +122,18 @@ void DrawWall(Ray_s* r, HitWall* hw, int x)
 {
     // Calculate height of line to draw on screen
     int lineHeight = (int)(SCR_HEIGHT / hw->distance);
+    int pitch = 100;
     // calculate lowest and highest pixel to fill in current stripe
-    int drawStart = -lineHeight / 2 + SCR_HEIGHT / 2;
+    int drawStart = -lineHeight / 2 + SCR_HEIGHT / 2 + pitch;
     if (drawStart < 0)
         drawStart = 0;
-    int drawEnd = lineHeight / 2 + SCR_HEIGHT / 2;
+    int drawEnd = lineHeight / 2 + SCR_HEIGHT / 2 + pitch;
     if (drawEnd >= SCR_HEIGHT)
         drawEnd = SCR_HEIGHT - 1;
 
     // choose wall color
     Color color;
-    switch (Map[(int)hw->hitCell.x][(int)hw->hitCell.y]) {
-    case 1:
-        color = RED;
-        break; // red
-    case 2:
-        color = GREEN;
-        break; // green
-    case 3:
-        color = BLUE;
-        break; // blue
-    case 4:
-        color = WHITE;
-        break; // white
-    default:
-        color = YELLOW;
-        break; // yellow
-    }
+    color = colmap[Map[(int)hw->hitCell.x][(int)hw->hitCell.y]];
     // give x and y sides different brightness
     if (hw->side == 1) {
         color.r /= 2;

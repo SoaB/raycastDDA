@@ -8,6 +8,7 @@
 #define CELL_SIZE 24
 #define MAP_X_SIZE 24
 #define MAP_Y_SIZE 24
+#define TEX_SIZE 64
 #define MAP_LENG MAP_X_SIZE* MAP_Y_SIZE
 
 #endif

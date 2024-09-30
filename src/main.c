@@ -8,6 +8,9 @@ int Map[MAP_SIZE][MAP_SIZE] = { 0 };
 Vector2 mousePosi = { 0 };
 Vector2 mouseCell = { 0 };
 Ray_s Player;
+Color colmap[8] = {
+    WHITE, RED, GREEN, BLUE, GOLD, PINK, MAROON, PURPLE
+};
 
 void Clip(Vector2* v, int x, int y, int w, int h)
 {
@@ -25,8 +28,8 @@ void DrawMap()
 {
     for (int i = 0; i < MAP_SIZE; i++) {
         for (int j = 0; j < MAP_SIZE; j++) {
-            if (Map[j][i] == 1) {
-                DrawRectangle(j * CELL_SIZE, i * CELL_SIZE, CELL_SIZE, CELL_SIZE, BLUE);
+            if (Map[j][i] > 0) {
+                DrawRectangle(j * CELL_SIZE, i * CELL_SIZE, CELL_SIZE, CELL_SIZE, colmap[Map[j][i]]);
             } else
                 DrawRectangleLines(j * CELL_SIZE, i * CELL_SIZE, CELL_SIZE, CELL_SIZE, (Color) { 66, 66, 66, 255 });
         }
@@ -47,8 +50,10 @@ void UpdateAll()
     Clip(&mousePosi, 0, 0, MAP_SIZE * CELL_SIZE - 1, MAP_SIZE * CELL_SIZE - 1);
     mouseCell = V2DivVal(mousePosi, CELL_SIZE);
     // set wall with mouse
-    if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
-        Map[(int)mouseCell.x][(int)mouseCell.y] = 1;
+    if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+        Map[(int)mouseCell.x][(int)mouseCell.y] += 1;
+        if (Map[(int)mouseCell.x][(int)mouseCell.y] > 7)
+            Map[(int)mouseCell.x][(int)mouseCell.y] = 0;
     }
     // update play position
     if (IsKeyDown(KEY_W)) {
