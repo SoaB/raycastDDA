@@ -1,7 +1,6 @@
 #include "ray.h"
-#include "Common.h"
+#include "rCommon.h"
 #include "vecmath.h"
-#include <math.h>
 #include <raylib.h>
 #include <stdbool.h>
 extern int Map[MAP_SIZE][MAP_SIZE];
@@ -28,7 +27,7 @@ static float f_abs(float a)
         return -a;
     return a;
 }
-bool CastRay(Ray_s* r, Vector2* p)
+bool CastRay(Ray_s* r, HitWall* hw)
 {
     // DDA Algorithm ==============================================
     // https://lodev.org/cgtutor/raycasting.html
@@ -70,10 +69,12 @@ bool CastRay(Ray_s* r, Vector2* p)
             mapCheck.x += step.x;
             fDistance = rayLength1D.x;
             rayLength1D.x += rayUnitStepSize.x;
+            hw->side = 0;
         } else {
             mapCheck.y += step.y;
             fDistance = rayLength1D.y;
             rayLength1D.y += rayUnitStepSize.y;
+            hw->side = 1;
         }
         // Test tile at new test point
         if (mapCheck.x >= 0 && mapCheck.x < MAP_SIZE && mapCheck.y >= 0 && mapCheck.y < MAP_SIZE) {
@@ -81,6 +82,8 @@ bool CastRay(Ray_s* r, Vector2* p)
             //                bTileFound = true;
             //            }
             if (Map[(int)mapCheck.x][(int)mapCheck.y] == 1) {
+                hw->hitCell = mapCheck;
+                hw->distance = fDistance;
                 bTileFound = true;
             }
         }
@@ -88,22 +91,72 @@ bool CastRay(Ray_s* r, Vector2* p)
     // Calculate intersection location
     if (bTileFound) {
         Vector2 rayDirLen = V2MulVal(r->dir, fDistance);
-        p->x = r->cell.x + rayDirLen.x;
-        p->y = r->cell.y + rayDirLen.y;
+        hw->point.x = r->cell.x + rayDirLen.x;
+        hw->point.y = r->cell.y + rayDirLen.y;
     }
     return bTileFound;
 }
+void DrawWall(Ray_s* r, HitWall* hw, int x)
+{
+    // Calculate height of line to draw on screen
+    int lineHeight = (int)(SCR_HEIGHT / hw->distance);
+    // calculate lowest and highest pixel to fill in current stripe
+    int drawStart = -lineHeight / 2 + SCR_HEIGHT / 2;
+    if (drawStart < 0)
+        drawStart = 0;
+    int drawEnd = lineHeight / 2 + SCR_HEIGHT / 2;
+    if (drawEnd >= SCR_HEIGHT)
+        drawEnd = SCR_HEIGHT - 1;
+
+    // choose wall color
+    Color color;
+    switch (Map[(int)hw->hitCell.x][(int)hw->hitCell.y]) {
+    case 1:
+        color = RED;
+        break; // red
+    case 2:
+        color = GREEN;
+        break; // green
+    case 3:
+        color = BLUE;
+        break; // blue
+    case 4:
+        color = WHITE;
+        break; // white
+    default:
+        color = YELLOW;
+        break; // yellow
+    }
+    // give x and y sides different brightness
+    if (hw->side == 1) {
+        color.r /= 2;
+        color.g /= 2;
+        color.b /= 2;
+    }
+    // draw the pixels of the stripe as a vertical line
+    DrawLineEx((Vector2) { x, drawStart }, (Vector2) { x, drawEnd }, 8, color);
+}
 void RayLookWall(Ray_s* r)
 {
-    Vector2 cp;
-    Color col = (Color) { 200, 200, 200, 150 };
+    HitWall hw = { 0 };
+    Color hcol = (Color) { 200, 200, 200, 150 };
+    Color dcol = (Color) { 100, 100, 100, 100 };
+    Color col;
     r->dir = V2Clone(r->head);
-    for (int i = 0; i < 360; i++) {
+    r->dir = V2Rotate(r->dir, r->angle[330]);
+    int startx = MAP_X_SIZE * CELL_SIZE + 10;
+    for (int i = 0; i < 60; i++) {
         r->dir = V2Rotate(r->dir, r->angle[1]);
         r->dir = V2Norm(r->dir);
-        if (CastRay(r, &cp)) {
-            Vector2 end = V2MulVal(cp, CELL_SIZE);
+        if (CastRay(r, &hw)) {
+            if (hw.side)
+                col = hcol;
+            else
+                col = dcol;
+            Vector2 end = V2MulVal(hw.point, CELL_SIZE);
             DrawLineV(r->pos, end, col);
+            DrawWall(r, &hw, startx);
+            startx += 8;
         }
     }
 }

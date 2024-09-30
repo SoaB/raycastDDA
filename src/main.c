@@ -1,6 +1,6 @@
-#include "common.h"
 #include "ray.h"
 #include "raylib.h"
+#include "rcommon.h"
 #include "vecmath.h"
 #include <stdbool.h>
 
@@ -41,6 +41,8 @@ void DrawMouse()
 void UpdateAll()
 {
     int angle = 0;
+    Vector2 chkPos = { 0 };
+    Vector2 chkPosCell = { 0 };
     mousePosi = GetMousePosition();
     Clip(&mousePosi, 0, 0, MAP_SIZE * CELL_SIZE - 1, MAP_SIZE * CELL_SIZE - 1);
     mouseCell = V2DivVal(mousePosi, CELL_SIZE);
@@ -50,13 +52,19 @@ void UpdateAll()
     }
     // update play position
     if (IsKeyDown(KEY_W)) {
-        Player.pos = V2Add(Player.pos, V2MulVal(Player.head, 5));
+        chkPos = V2Add(Player.pos, V2MulVal(Player.head, 5));
+        chkPosCell = V2DivVal(chkPos, CELL_SIZE);
+        if (Map[(int)chkPosCell.x][(int)chkPosCell.y] == 0)
+            Player.pos = chkPos;
     }
     if (IsKeyDown(KEY_S)) {
-        Player.pos = V2Add(Player.pos, V2MulVal(Player.head, -5));
+        chkPos = V2Add(Player.pos, V2MulVal(Player.head, -5));
+        chkPosCell = V2DivVal(chkPos, CELL_SIZE);
+        if (Map[(int)chkPosCell.x][(int)chkPosCell.y] == 0)
+            Player.pos = chkPos;
     }
     if (IsKeyDown(KEY_A)) {
-        angle = -3;
+        angle = 360 - 3;
         Player.head = V2Rotate(Player.head, Player.angle[angle]);
     }
     if (IsKeyDown(KEY_D)) {

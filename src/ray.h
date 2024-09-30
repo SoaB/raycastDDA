@@ -10,9 +10,16 @@ typedef struct {
     float angle[360];
 } Ray_s;
 
+typedef struct {
+    Vector2 point;
+    Vector2 hitCell;
+    float distance;
+    int side;
+} HitWall;
+
 Ray_s GenRay(float x, float y);
 void SetRayPos(Ray_s* r, Vector2 pos);
-bool CastRay(Ray_s* r, Vector2* p);
+bool CastRay(Ray_s* r, HitWall* p);
 void RayLookWall(Ray_s* r);
 void DrawRayPosition(Ray_s* r);
 #endif
