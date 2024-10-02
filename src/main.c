@@ -1,6 +1,6 @@
+#include "global.h"
 #include "ray.h"
 #include "raylib.h"
-#include "rcommon.h"
 #include "vecmath.h"
 #include <stdbool.h>
 

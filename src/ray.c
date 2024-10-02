@@ -1,5 +1,5 @@
 #include "ray.h"
-#include "rCommon.h"
+#include "global.h"
 #include "vecmath.h"
 #include <raylib.h>
 #include <stdbool.h>
@@ -100,9 +100,6 @@ bool CastRay(Ray_s* r, HitWall* hw)
         }
         // Test tile at new test point
         if (mapCheck.x >= 0 && mapCheck.x < MAP_SIZE && mapCheck.y >= 0 && mapCheck.y < MAP_SIZE) {
-            //            if (Map[(int)mapCheck.x][(int)mapCheck.y] == 1) {
-            //                bTileFound = true;
-            //            }
             if (Map[(int)mapCheck.x][(int)mapCheck.y] >= 1) {
                 hw->hitCell = mapCheck;
                 hw->distance = fDistance;
@@ -151,7 +148,7 @@ void RayLookWall(Ray_s* r)
     Color col;
     r->dir = V2Clone(r->head);
     r->dir = V2Rotate(r->dir, r->angle[330]);
-    int startx = MAP_X_SIZE * CELL_SIZE + 10;
+    int startx = MAP_X_SIZE * CELL_SIZE;
     for (int i = 0; i < 60; i++) {
         r->dir = V2Rotate(r->dir, r->angle[1]);
         r->dir = V2Norm(r->dir);
