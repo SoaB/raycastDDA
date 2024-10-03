@@ -1,9 +1,11 @@
 #include "ray.h"
 #include "global.h"
-#include "vecmath.h"
+#define RAYMATH_IMPLEMENTATION
+#include "raymath.h"
 #include <raylib.h>
 #include <stdbool.h>
 #include <stdint.h>
+
 extern int Map[MAP_SIZE][MAP_SIZE];
 extern Color colmap[8];
 uint32_t TexArr[8][TEX_SIZE * TEX_SIZE];
@@ -32,9 +34,6 @@ Ray_s GenRay(float x, float y)
     r.pos.y = y;
     r.dir = (Vector2) { 1, 0 };
     r.head = (Vector2) { 1, 0 };
-    for (int i = 0; i < 360; i++) {
-        r.angle[i] = i * DEG2RAD;
-    }
     GenTexture();
     return r;
 }
@@ -43,21 +42,15 @@ void SetRayPos(Ray_s* r, Vector2 pos)
 {
     r->pos = pos;
 }
-static float f_abs(float a)
-{
-    if (a < 0)
-        return -a;
-    return a;
-}
 bool CastRay(Ray_s* r, HitWall* hw)
 {
     // DDA Algorithm ==============================================
     // https://lodev.org/cgtutor/raycasting.html
-    Vector2 rayStart = V2Clone(r->cell);
+    Vector2 rayStart = r->cell;
     Vector2 mapCheck = (Vector2) { (int)rayStart.x, (int)rayStart.y };
 
     // Lodev.org also explains this additional optimistaion (but it's beyond scope of video)
-    Vector2 rayUnitStepSize = { f_abs(1.0f / r->dir.x), f_abs(1.0f / r->dir.y) };
+    Vector2 rayUnitStepSize = { fabsf(1.0f / r->dir.x), fabsf(1.0f / r->dir.y) };
     /*
     Vector2 rayUnitStepSize = {
         sqrt(1 + (r->dir.y * r->dir.y) / (r->dir.x * r->dir.x)),
@@ -109,7 +102,7 @@ bool CastRay(Ray_s* r, HitWall* hw)
     }
     // Calculate intersection location
     if (bTileFound) {
-        Vector2 rayDirLen = V2MulVal(r->dir, fDistance);
+        Vector2 rayDirLen = Vector2Scale(r->dir, fDistance);
         hw->point.x = r->cell.x + rayDirLen.x;
         hw->point.y = r->cell.y + rayDirLen.y;
     }
@@ -146,18 +139,18 @@ void RayLookWall(Ray_s* r)
     Color hcol = (Color) { 200, 200, 200, 150 };
     Color dcol = (Color) { 100, 100, 100, 100 };
     Color col;
-    r->dir = V2Clone(r->head);
-    r->dir = V2Rotate(r->dir, r->angle[330]);
+    r->dir = r->head;
+    r->dir = Vector2Rotate(r->dir, 330 * DEG2RAD);
     int startx = MAP_X_SIZE * CELL_SIZE;
     for (int i = 0; i < 60; i++) {
-        r->dir = V2Rotate(r->dir, r->angle[1]);
-        r->dir = V2Norm(r->dir);
+        r->dir = Vector2Rotate(r->dir, DEG2RAD);
+        r->dir = Vector2Normalize(r->dir);
         if (CastRay(r, &hw)) {
             if (hw.side)
                 col = hcol;
             else
                 col = dcol;
-            Vector2 end = V2MulVal(hw.point, CELL_SIZE);
+            Vector2 end = Vector2Scale(hw.point, CELL_SIZE);
             DrawLineV(r->pos, end, col);
             DrawWall(r, &hw, startx);
             startx += 8;
@@ -168,6 +161,6 @@ void DrawRayPosition(Ray_s* r)
 {
     DrawCircleV(r->pos, 4, YELLOW);
     Vector2 dest;
-    dest = V2Add(r->pos, V2MulVal(r->head, 20));
+    dest = Vector2Add(r->pos, Vector2Scale(r->head, 20));
     DrawLineV(r->pos, dest, RED);
 }

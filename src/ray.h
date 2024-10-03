@@ -7,7 +7,6 @@ typedef struct {
     Vector2 cell;
     Vector2 dir;
     Vector2 head;
-    float angle[360];
 } Ray_s;
 
 typedef struct {

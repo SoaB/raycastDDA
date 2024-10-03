@@ -1,7 +1,7 @@
 #include "global.h"
 #include "ray.h"
 #include "raylib.h"
-#include "vecmath.h"
+#include "raymath.h"
 #include <stdbool.h>
 
 int Map[MAP_SIZE][MAP_SIZE] = { 0 };
@@ -43,12 +43,12 @@ void DrawMouse()
 }
 void UpdateAll()
 {
-    int angle = 0;
+    float angle = 0;
     Vector2 chkPos = { 0 };
     Vector2 chkPosCell = { 0 };
     mousePosi = GetMousePosition();
     Clip(&mousePosi, 0, 0, MAP_SIZE * CELL_SIZE - 1, MAP_SIZE * CELL_SIZE - 1);
-    mouseCell = V2DivVal(mousePosi, CELL_SIZE);
+    mouseCell = Vector2Scale(mousePosi, 1.0 / CELL_SIZE);
     // set wall with mouse
     if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
         Map[(int)mouseCell.x][(int)mouseCell.y] += 1;
@@ -57,27 +57,27 @@ void UpdateAll()
     }
     // update play position
     if (IsKeyDown(KEY_W)) {
-        chkPos = V2Add(Player.pos, V2MulVal(Player.head, 5));
-        chkPosCell = V2DivVal(chkPos, CELL_SIZE);
+        chkPos = Vector2Add(Player.pos, Vector2Scale(Player.head, 16));
+        chkPosCell = Vector2Scale(chkPos, 1.0 / CELL_SIZE);
         if (Map[(int)chkPosCell.x][(int)chkPosCell.y] == 0)
-            Player.pos = chkPos;
+            Player.pos = Vector2Add(Player.pos, Vector2Scale(Player.head, 5));
     }
     if (IsKeyDown(KEY_S)) {
-        chkPos = V2Add(Player.pos, V2MulVal(Player.head, -5));
-        chkPosCell = V2DivVal(chkPos, CELL_SIZE);
+        chkPos = Vector2Add(Player.pos, Vector2Scale(Player.head, -16));
+        chkPosCell = Vector2Scale(chkPos, 1.0 / CELL_SIZE);
         if (Map[(int)chkPosCell.x][(int)chkPosCell.y] == 0)
-            Player.pos = chkPos;
+            Player.pos = Vector2Add(Player.pos, Vector2Scale(Player.head, -5));
     }
     if (IsKeyDown(KEY_A)) {
-        angle = 360 - 3;
-        Player.head = V2Rotate(Player.head, Player.angle[angle]);
+        angle = (360 - 3) * DEG2RAD;
+        Player.head = Vector2Rotate(Player.head, angle);
     }
     if (IsKeyDown(KEY_D)) {
-        angle = 3;
-        Player.head = V2Rotate(Player.head, Player.angle[angle]);
+        angle = 3 * DEG2RAD;
+        Player.head = Vector2Rotate(Player.head, angle);
     }
     Clip(&Player.pos, 0, 0, MAP_SIZE * CELL_SIZE - 1, MAP_SIZE * CELL_SIZE - 1);
-    Player.cell = V2DivVal(Player.pos, CELL_SIZE);
+    Player.cell = Vector2Scale(Player.pos, 1.0 / CELL_SIZE);
 }
 int main()
 {
