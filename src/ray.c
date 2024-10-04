@@ -8,33 +8,15 @@
 
 extern int Map[MAP_SIZE][MAP_SIZE];
 extern Color colmap[8];
-uint32_t TexArr[8][TEX_SIZE * TEX_SIZE];
-void GenTexture()
-{
-    for (int x = 0; x < TEX_SIZE; x++)
-        for (int y = 0; y < TEX_SIZE; y++) {
-            int xorcolor = (x * 256 / TEX_SIZE) ^ (y * 256 / TEX_SIZE);
-            // int xcolor = x * 256 / texWidth;
-            int ycolor = y * 256 / TEX_SIZE;
-            int xycolor = y * 128 / TEX_SIZE + x * 128 / TEX_SIZE;
-            TexArr[0][TEX_SIZE * y + x] = 65536 * 254 * (x != y && x != TEX_SIZE - y); // flat red texture with black cross
-            TexArr[1][TEX_SIZE * y + x] = xycolor + 256 * xycolor + 65536 * xycolor; // sloped greyscale
-            TexArr[2][TEX_SIZE * y + x] = 256 * xycolor + 65536 * xycolor; // sloped yellow gradient
-            TexArr[3][TEX_SIZE * y + x] = xorcolor + 256 * xorcolor + 65536 * xorcolor; // xor greyscale
-            TexArr[4][TEX_SIZE * y + x] = 256 * xorcolor; // xor green
-            TexArr[5][TEX_SIZE * y + x] = 65536 * 192 * (x % 16 && y % 16); // red bricks
-            TexArr[6][TEX_SIZE * y + x] = 65536 * ycolor; // red gradient
-            TexArr[7][TEX_SIZE * y + x] = 128 + 256 * 128 + 65536 * 128; // flat grey texture
-        }
-}
+extern Image imgTex[8];
+extern uint32_t* pixels;
 Ray_s GenRay(float x, float y)
 {
     Ray_s r;
     r.pos.x = x;
     r.pos.y = y;
     r.dir = (Vector2) { 1, 0 };
-    r.head = (Vector2) { 1, 0 };
-    GenTexture();
+    r.plane = (Vector2) { 0, 0.66 };
     return r;
 }
 
@@ -46,28 +28,21 @@ bool CastRay(Ray_s* r, HitWall* hw)
 {
     // DDA Algorithm ==============================================
     // https://lodev.org/cgtutor/raycasting.html
-    Vector2 rayStart = r->cell;
+    Vector2 rayStart = r->pos;
     Vector2 mapCheck = (Vector2) { (int)rayStart.x, (int)rayStart.y };
-
     // Lodev.org also explains this additional optimistaion (but it's beyond scope of video)
-    Vector2 rayUnitStepSize = { fabsf(1.0f / r->dir.x), fabsf(1.0f / r->dir.y) };
-    /*
-    Vector2 rayUnitStepSize = {
-        sqrt(1 + (r->dir.y * r->dir.y) / (r->dir.x * r->dir.x)),
-        sqrt(1 + (r->dir.x * r->dir.x) / (r->dir.y * r->dir.y))
-    };
-    */
+    Vector2 rayUnitStepSize = { fabsf(1.0f / r->rayDir.x), fabsf(1.0f / r->rayDir.y) };
     Vector2 rayLength1D = { 0 };
     Vector2 step = { 0 };
     // Establish Starting Conditions
-    if (r->dir.x < 0) {
+    if (r->rayDir.x < 0) {
         step.x = -1;
         rayLength1D.x = (rayStart.x - mapCheck.x) * rayUnitStepSize.x;
     } else {
         step.x = 1;
         rayLength1D.x = ((mapCheck.x + 1) - rayStart.x) * rayUnitStepSize.x;
     }
-    if (r->dir.y < 0) {
+    if (r->rayDir.y < 0) {
         step.y = -1;
         rayLength1D.y = (rayStart.y - mapCheck.y) * rayUnitStepSize.y;
     } else {
@@ -102,9 +77,9 @@ bool CastRay(Ray_s* r, HitWall* hw)
     }
     // Calculate intersection location
     if (bTileFound) {
-        Vector2 rayDirLen = Vector2Scale(r->dir, fDistance);
-        hw->point.x = r->cell.x + rayDirLen.x;
-        hw->point.y = r->cell.y + rayDirLen.y;
+        Vector2 rayDirLen = Vector2Scale(r->rayDir, fDistance);
+        hw->point.x = r->pos.x + rayDirLen.x;
+        hw->point.y = r->pos.y + rayDirLen.y;
     }
     return bTileFound;
 }
@@ -112,55 +87,113 @@ void DrawWall(Ray_s* r, HitWall* hw, int x)
 {
     // Calculate height of line to draw on screen
     int lineHeight = (int)(SCR_HEIGHT / hw->distance);
-    int pitch = 100;
+    if (lineHeight < 1)
+        lineHeight = 1;
     // calculate lowest and highest pixel to fill in current stripe
-    int drawStart = -lineHeight / 2 + SCR_HEIGHT / 2 + pitch;
+    int drawStart = -lineHeight / 2 + SCR_HEIGHT / 2;
     if (drawStart < 0)
         drawStart = 0;
-    int drawEnd = lineHeight / 2 + SCR_HEIGHT / 2 + pitch;
+    int drawEnd = lineHeight / 2 + SCR_HEIGHT / 2;
     if (drawEnd >= SCR_HEIGHT)
         drawEnd = SCR_HEIGHT - 1;
 
-    // choose wall color
-    Color color;
-    color = colmap[Map[(int)hw->hitCell.x][(int)hw->hitCell.y]];
-    // give x and y sides different brightness
-    if (hw->side == 1) {
-        color.r /= 2;
-        color.g /= 2;
-        color.b /= 2;
+    // calculate value of wallX
+    float wallX; // where exactly the wall was hit
+    if (hw->side == 0)
+        wallX = r->pos.y + hw->distance * r->rayDir.y;
+    else
+        wallX = r->pos.x + hw->distance * r->rayDir.x;
+    wallX -= floorf(wallX);
+    // x coordinate on the texture
+    int texX = (int)(wallX * (float)TEX_WIDTH);
+    if (hw->side == 0 && r->rayDir.x > 0)
+        texX = TEX_WIDTH - texX - 1;
+    if (hw->side == 1 && r->rayDir.y < 0)
+        texX = TEX_WIDTH - texX - 1;
+    int texNum = Map[(int)hw->hitCell.x][(int)hw->hitCell.y] - 1;
+    uint32_t* pixs = (uint32_t*)imgTex[texNum].data;
+    // TODO: an integer-only bresenham or DDA like algorithm
+    // could make the texture coordinate stepping faster
+    int st = (drawStart * SCR_WIDTH + x);
+    for (int y = drawStart; y < drawEnd; y++) {
+        // d := y*256 - SCR_HEIGHT*128 + lineHeight*128
+        // 256 and 128 factors to avoid floats
+        int d = (y << 8) - (SCR_HEIGHT << 7) + (lineHeight << 7);
+        // TODO: avoid the division to speed this up
+        int texY = ((d * TEX_SIZE) / lineHeight) / 256;
+        int index = (TEX_SIZE * texY + texX);
+        uint32_t da = pixs[index];
+        // calc color for dark or something you want to change !
+        if (hw->side) {
+            da = ((da & 0x00FFFFFF) >> 1) | 0xFF000000;
+        }
+        pixels[st] = da;
+        st += SCR_WIDTH;
     }
-    // draw the pixels of the stripe as a vertical line
-    DrawLineEx((Vector2) { x, drawStart }, (Vector2) { x, drawEnd }, 8, color);
+    // end of wall draw ...
+    Vector2 floorWall;
+    if (hw->side == 0 && r->rayDir.x > 0) {
+        floorWall.x = hw->hitCell.x;
+        floorWall.y = hw->hitCell.y + wallX;
+    } else if (hw->side == 0 && r->rayDir.x < 0) {
+        floorWall.x = hw->hitCell.x + 1.0;
+        floorWall.y = hw->hitCell.y + wallX;
+    } else if (hw->side == 1 && r->rayDir.y > 0) {
+        floorWall.x = hw->hitCell.x + wallX;
+        floorWall.y = hw->hitCell.y;
+    } else {
+        floorWall.x = hw->hitCell.x + wallX;
+        floorWall.y = hw->hitCell.y + 1.0;
+    }
+    float distWall = hw->distance;
+    float distPlayer = 0;
+    st = ((drawEnd + 1) * SCR_WIDTH + x);
+    int st1 = ((SCR_HEIGHT - drawEnd + 1) * SCR_WIDTH + x);
+    Vector2 currentFloor;
+    uint32_t* px1 = (uint32_t*)imgTex[6].data;
+    uint32_t* px2 = (uint32_t*)imgTex[7].data;
+    for (int y = drawEnd + 1; y < SCR_HEIGHT; y++) {
+        float currentDist = (float)SCR_HEIGHT / (2.0 * (float)(y) - (float)(SCR_HEIGHT));
+        float weight = (currentDist - distPlayer) / (distWall - distPlayer);
+        currentFloor.x = weight * floorWall.x + (1.0 - weight) * r->pos.x;
+        currentFloor.y = weight * floorWall.y + (1.0 - weight) * r->pos.y;
+        int fx = (int)(currentFloor.x * (float)(TEX_SIZE)) % TEX_SIZE;
+        int fy = (int)(currentFloor.y * (float)(TEX_SIZE)) % TEX_SIZE;
+        int idx = (fy * TEX_SIZE + fx);
+        // int idx = ((fy << 6) + fx);
+        pixels[st] = px1[idx];
+        pixels[st1] = px2[idx];
+        st += SCR_WIDTH;
+        st1 -= SCR_WIDTH;
+    }
 }
 void RayLookWall(Ray_s* r)
 {
     HitWall hw = { 0 };
-    Color hcol = (Color) { 200, 200, 200, 150 };
-    Color dcol = (Color) { 100, 100, 100, 100 };
-    Color col;
-    r->dir = r->head;
-    r->dir = Vector2Rotate(r->dir, 330 * DEG2RAD);
-    int startx = MAP_X_SIZE * CELL_SIZE;
-    for (int i = 0; i < 60; i++) {
-        r->dir = Vector2Rotate(r->dir, DEG2RAD);
-        r->dir = Vector2Normalize(r->dir);
+    //    Color hcol = (Color) { 200, 200, 200, 150 };
+    //    Color dcol = (Color) { 100, 100, 100, 100 };
+    //    Color col;
+    for (int x = 0; x < SCR_WIDTH; x++) {
+        float cameraX = 2.0 * x / SCR_WIDTH - 1; // x-coordinate in camera space
+        r->rayDir.x = r->dir.x + r->plane.x * cameraX;
+        r->rayDir.y = r->dir.y + r->plane.y * cameraX;
         if (CastRay(r, &hw)) {
-            if (hw.side)
-                col = hcol;
-            else
-                col = dcol;
-            Vector2 end = Vector2Scale(hw.point, CELL_SIZE);
-            DrawLineV(r->pos, end, col);
-            DrawWall(r, &hw, startx);
-            startx += 8;
+            //            if (hw.side)
+            //                col = hcol;
+            //            else
+            //                col = dcol;
+            //            Vector2 end = Vector2Scale(hw.point, CELL_SIZE);
+            //            Vector2 st = Vector2Scale(r->pos, CELL_SIZE);
+            //            DrawLineV(st, end, col);
+            DrawWall(r, &hw, x);
         }
     }
 }
 void DrawRayPosition(Ray_s* r)
 {
-    DrawCircleV(r->pos, 4, YELLOW);
-    Vector2 dest;
-    dest = Vector2Add(r->pos, Vector2Scale(r->head, 20));
-    DrawLineV(r->pos, dest, RED);
+    Vector2 dest = Vector2Scale(r->dir, 4);
+    Vector2 src = Vector2Scale(r->pos, CELL_SIZE);
+    DrawCircleV(src, 4, YELLOW);
+    dest = Vector2Add(src, dest);
+    DrawLineV(src, dest, RED);
 }

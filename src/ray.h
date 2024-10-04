@@ -4,9 +4,9 @@
 
 typedef struct {
     Vector2 pos;
-    Vector2 cell;
     Vector2 dir;
-    Vector2 head;
+    Vector2 rayDir;
+    Vector2 plane;
 } Ray_s;
 
 typedef struct {
